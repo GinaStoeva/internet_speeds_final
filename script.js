@@ -154,6 +154,7 @@ function initGlobe() {
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);
 
+  // Globe
   const globeGeo = new THREE.SphereGeometry(1, 64, 64);
   const globeMat = new THREE.MeshStandardMaterial({
     map: new THREE.TextureLoader().load("https://threejs.org/examples/textures/earth_atmos_2048.jpg"),
@@ -163,12 +164,69 @@ function initGlobe() {
   const globe = new THREE.Mesh(globeGeo, globeMat);
   scene.add(globe);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff,0.6);
+  // Lights
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
-  const pointLight = new THREE.PointLight(0xffffff,1);
+  const pointLight = new THREE.PointLight(0xffffff, 1);
   pointLight.position.set(5,3,5);
   scene.add(pointLight);
+
+  // Raycaster for click detection
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  container.addEventListener("click", event => {
+    // normalize mouse coords
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(globe);
+
+    if(intersects.length > 0) {
+      // Convert 3D point to lat/lon
+      const point = intersects[0].point;
+      const lat = 90 - (Math.acos(point.y / 1) * 180 / Math.PI);
+      const lon = ((270 + (Math.atan2(point.x, point.z) * 180 / Math.PI)) % 360) - 180;
+
+      // Find closest country using lat/lon lookup (simplified)
+      const closest = findClosestCountry(lat, lon);
+      if(closest) {
+        // Select in dropdown
+        [...countrySelect.options].forEach(opt => opt.selected = opt.value === closest);
+        updateAllCharts();
+      }
+    }
+  });
+
+  // Simple lat/lon lookup (you can improve with GeoJSON later)
+  function findClosestCountry(lat, lon) {
+    // For simplicity, we map some major countries with approximate lat/lon
+    const locations = {
+      "United States":[38,-97],
+      "Brazil":[-10,-55],
+      "India":[21,78],
+      "China":[35,105],
+      "Australia":[-25,133],
+      "United Kingdom":[55,-3],
+      "South Africa":[-30,25],
+      "Japan":[36,138],
+      "Russia":[60,100],
+      "Canada":[60,-95]
+    };
+    let closestCountry = null;
+    let minDist = Infinity;
+    for(const [country,[cLat,cLon]] of Object.entries(locations)) {
+      const d = Math.sqrt((lat-cLat)**2 + (lon-cLon)**2);
+      if(d < minDist) {
+        minDist = d;
+        closestCountry = country;
+      }
+    }
+    return closestCountry;
+  }
 
   function animate() {
     requestAnimationFrame(animate);
@@ -177,3 +235,4 @@ function initGlobe() {
   }
   animate();
 }
+
