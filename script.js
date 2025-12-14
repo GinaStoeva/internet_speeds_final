@@ -3,9 +3,10 @@ let charts = {};
 const YEARS = ["2017","2018","2019","2020","2021","2022","2023","2024"];
 
 const countrySelect = document.getElementById("countrySelect");
-const regionSelect = document.getElementById("regionSelect");
 const yearRange = document.getElementById("yearRange");
 const yearLabel = document.getElementById("yearLabel");
+const topNInput = document.getElementById("topN");
+const updateBtn = document.getElementById("updateCharts");
 
 // ---------- LOAD CSV ----------
 Papa.parse("data/internet_speeds.csv", {
@@ -19,220 +20,148 @@ Papa.parse("data/internet_speeds.csv", {
       return obj;
     }).filter(d => d.country);
 
-    populateDropdowns();
+    buildDropdown();
     buildCharts();
     updateAllCharts();
-    initGlobe();
-  },
-  error: () => console.error("❌ Failed to load CSV")
+  }
 });
 
-// ---------- DROPDOWNS ----------
-function populateDropdowns() {
+// ---------- DROPDOWN ----------
+function buildDropdown() {
   countrySelect.innerHTML = "";
-  regionSelect.innerHTML = "<option value=''>All Regions</option>";
-
-  const countries = rawData.map(d => d.country).sort();
-  countries.forEach(c => {
+  rawData.map(d=>d.country).sort().forEach(c=>{
     const opt = document.createElement("option");
     opt.value = c;
     opt.textContent = c;
     countrySelect.appendChild(opt);
   });
-
-  const regions = [...new Set(rawData.map(d => d.region))].sort();
-  regions.forEach(r => {
-    const opt = document.createElement("option");
-    opt.value = r;
-    opt.textContent = r;
-    regionSelect.appendChild(opt);
-  });
-
-  countrySelect.addEventListener("change", updateAllCharts);
-  regionSelect.addEventListener("change", updateAllCharts);
-  yearRange.addEventListener("input", () => {
-    yearLabel.textContent = `2017-${yearRange.value}`;
-    updateAllCharts();
-  });
 }
 
 // ---------- CHARTS ----------
 function buildCharts() {
-  const commonOptions = { responsive: true, plugins: { legend: { position: 'top' }, title: { display:true } } };
+  const commonOptions = { responsive:true, plugins:{ legend:{ position:'top' } } };
+
+  charts.compare = new Chart(document.getElementById("chartCompare"), {
+    type:"line",
+    data:{ labels:YEARS, datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Country Internet Speeds Over Time" } } }
+  });
 
   charts.top = new Chart(document.getElementById("chartTop"), {
-    type: "bar", data:{ labels:[], datasets:[] }, options:{...commonOptions, plugins:{title:{text:"Top Internet Speeds (2024)"}}}
+    type:"bar",
+    data:{ labels:[], datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Top N Fastest Countries (Selected Year)" } } }
   });
 
   charts.improved = new Chart(document.getElementById("chartImproved"), {
-    type:"bar", data:{labels:[], datasets:[]}, options:{...commonOptions, plugins:{title:{text:"Most Improved Countries (2023→2024)"}}}
-  });
-
-  charts.compare = new Chart(document.getElementById("chartCompare"), {
-    type:"line", data:{labels:YEARS, datasets:[]}, options:{...commonOptions, plugins:{title:{text:"Selected Countries Over Time"}}}
+    type:"bar",
+    data:{ labels:[], datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Most Improved Countries (2023→2024)" } } }
   });
 
   charts.inequality = new Chart(document.getElementById("chartInequality"), {
-    type:"bar", data:{labels:[], datasets:[]}, options:{...commonOptions, plugins:{title:{text:"Digital Inequality by Region"}}}
+    type:"bar",
+    data:{ labels:[], datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Digital Inequality by Region" } } }
   });
 
   charts.correlation = new Chart(document.getElementById("chartCorrelation"), {
-    type:"scatter", data:{datasets:[]}, options:{...commonOptions, plugins:{title:{text:"Internet Speed vs Inequality"}}}
+    type:"scatter",
+    data:{ datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Speed vs Inequality" } } }
+  });
+
+  charts.distribution = new Chart(document.getElementById("chartDistribution"), {
+    type:"doughnut",
+    data:{ labels:[], datasets:[] },
+    options:{ ...commonOptions, plugins:{ title:{ display:true, text:"Distribution of Speeds (Selected Year)" } } }
   });
 }
 
 // ---------- UPDATE CHARTS ----------
 function updateAllCharts() {
-  const selectedCountries = [...countrySelect.selectedOptions].map(o=>o.value);
-  const selectedRegion = regionSelect.value;
-
-  const filteredData = rawData.filter(d => (!selectedRegion || d.region === selectedRegion));
-
-  updateTopChart(filteredData);
-  updateImprovedChart(filteredData);
-  updateComparisonChart(filteredData, selectedCountries);
-  updateInequalityChart(filteredData);
-  updateCorrelationChart(filteredData);
+  updateComparisonChart();
+  updateTopChart();
+  updateImprovedChart();
+  updateInequalityChart();
+  updateCorrelationChart();
+  updateDistributionChart();
 }
 
-// Top speeds
-function updateTopChart(data) {
-  const top10 = [...data].filter(d=>d["2024"]!=null).sort((a,b)=>b["2024"]-a["2024"]).slice(0,10);
-  charts.top.data.labels = top10.map(d=>d.country);
-  charts.top.data.datasets = [{label:"Mbps (2024)", data:top10.map(d=>d["2024"]), backgroundColor:'#0ea5e9'}];
-  charts.top.update();
-}
-
-// Most improved
-function updateImprovedChart(data) {
-  const improvements = data.map(d=>({country:d.country, change:(d["2024"]||0)-(d["2023"]||0)}))
-    .sort((a,b)=>b.change-a.change).slice(0,10);
-  charts.improved.data.labels = improvements.map(d=>d.country);
-  charts.improved.data.datasets = [{label:"Mbps Increase", data:improvements.map(d=>d.change), backgroundColor:'#f97316'}];
-  charts.improved.update();
-}
-
-// Comparison chart
-function updateComparisonChart(data, selectedCountries) {
-  charts.compare.data.datasets = selectedCountries.map(c=>{
-    const d = data.find(r=>r.country===c);
-    return {label:c, data:YEARS.map(y=>d[y]||0), borderWidth:2, tension:0.3};
+// Line chart: compare countries
+function updateComparisonChart() {
+  const selected = [...countrySelect.selectedOptions].map(o=>o.value);
+  charts.compare.data.datasets = selected.map(country=>{
+    const row = rawData.find(d=>d.country===country);
+    return { label:country, data:YEARS.map(y=>row[y]||0), borderWidth:2, tension:0.3 };
   });
   charts.compare.update();
 }
 
-// Inequality chart
-function updateInequalityChart(data) {
+// Top N chart
+function updateTopChart() {
+  const year = yearRange.value;
+  const N = parseInt(topNInput.value) || 10;
+  const top = [...rawData].filter(r=>r[year]!=null).sort((a,b)=>b[year]-a[year]).slice(0,N);
+  charts.top.data.labels = top.map(d=>d.country);
+  charts.top.data.datasets = [{ label:`Mbps (${year})`, data:top.map(d=>d[year]), backgroundColor:'#0ea5e9' }];
+  charts.top.update();
+}
+
+// Most improved
+function updateImprovedChart() {
+  const improvements = rawData.map(r=>({ country:r.country, change:(r["2024"]||0)-(r["2023"]||0) }))
+    .sort((a,b)=>b.change-a.change).slice(0,10);
+  charts.improved.data.labels = improvements.map(d=>d.country);
+  charts.improved.data.datasets = [{ label:"Mbps Increase", data:improvements.map(d=>d.change), backgroundColor:'#f97316' }];
+  charts.improved.update();
+}
+
+// Digital inequality
+function updateInequalityChart() {
   const regions = {};
-  data.forEach(d=>{ if(!regions[d.region]) regions[d.region]=[]; regions[d.region].push(d["2024"]||0); });
+  rawData.forEach(r=>{
+    if(!regions[r.region]) regions[r.region]=[];
+    regions[r.region].push(r["2024"]||0);
+  });
   const labels = Object.keys(regions);
-  const values = labels.map(r=>Math.max(...regions[r])-Math.min(...regions[r]));
+  const values = labels.map(region=>Math.max(...regions[region])-Math.min(...regions[region]));
   charts.inequality.data.labels = labels;
-  charts.inequality.data.datasets = [{label:"DII", data:values, backgroundColor:'#22c55e'}];
+  charts.inequality.data.datasets = [{ label:"DII (Mbps)", data:values, backgroundColor:'#22c55e' }];
   charts.inequality.update();
 }
 
-// Correlation chart
-function updateCorrelationChart(data) {
-  const points = data.map(d=>{
-    const speed = d["2024"]||0;
-    const inequality = Math.max(...YEARS.map(y=>d[y]||0))-Math.min(...YEARS.map(y=>d[y]||0));
-    return {x:speed, y:inequality, label:d.country};
+// Speed vs inequality correlation
+function updateCorrelationChart() {
+  const points = [];
+  rawData.forEach(r=>{
+    const speed = r["2024"]||0;
+    const inequality = (Math.max(...YEARS.map(y=>r[y]||0))-Math.min(...YEARS.map(y=>r[y]||0)))||0;
+    points.push({ x:speed, y:inequality, label:r.country });
   });
-  charts.correlation.data.datasets = [{label:"Countries", data:points, backgroundColor:'#6366f1'}];
+  charts.correlation.data.datasets = [{ label:"Country", data:points, backgroundColor:'#6366f1' }];
   charts.correlation.update();
 }
 
-// ---------- 3D Globe ----------
-function initGlobe() {
-  const container = document.getElementById("globeContainer");
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, container.clientWidth/container.clientHeight, 0.1, 1000);
-  camera.position.z = 3;
-
-  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setSize(container.clientWidth, container.clientHeight);
-  container.appendChild(renderer.domElement);
-
-  // Globe
-  const globeGeo = new THREE.SphereGeometry(1, 64, 64);
-  const globeMat = new THREE.MeshStandardMaterial({
-    map: new THREE.TextureLoader().load("https://threejs.org/examples/textures/earth_atmos_2048.jpg"),
-    roughness:1,
-    metalness:0
+// Distribution pie/doughnut
+function updateDistributionChart() {
+  const year = yearRange.value;
+  const bins = { "<10":0, "10-50":0, "50-100":0, "100-200":0, ">200":0 };
+  rawData.forEach(r=>{
+    const val = r[year]||0;
+    if(val<10) bins["<10"]++;
+    else if(val<50) bins["10-50"]++;
+    else if(val<100) bins["50-100"]++;
+    else if(val<200) bins["100-200"]++;
+    else bins[">200"]++;
   });
-  const globe = new THREE.Mesh(globeGeo, globeMat);
-  scene.add(globe);
-
-  // Lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambientLight);
-
-  const pointLight = new THREE.PointLight(0xffffff, 1);
-  pointLight.position.set(5,3,5);
-  scene.add(pointLight);
-
-  // Raycaster for click detection
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-
-  container.addEventListener("click", event => {
-    // normalize mouse coords
-    const rect = container.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(globe);
-
-    if(intersects.length > 0) {
-      // Convert 3D point to lat/lon
-      const point = intersects[0].point;
-      const lat = 90 - (Math.acos(point.y / 1) * 180 / Math.PI);
-      const lon = ((270 + (Math.atan2(point.x, point.z) * 180 / Math.PI)) % 360) - 180;
-
-      // Find closest country using lat/lon lookup (simplified)
-      const closest = findClosestCountry(lat, lon);
-      if(closest) {
-        // Select in dropdown
-        [...countrySelect.options].forEach(opt => opt.selected = opt.value === closest);
-        updateAllCharts();
-      }
-    }
-  });
-
-  // Simple lat/lon lookup (you can improve with GeoJSON later)
-  function findClosestCountry(lat, lon) {
-    // For simplicity, we map some major countries with approximate lat/lon
-    const locations = {
-      "United States":[38,-97],
-      "Brazil":[-10,-55],
-      "India":[21,78],
-      "China":[35,105],
-      "Australia":[-25,133],
-      "United Kingdom":[55,-3],
-      "South Africa":[-30,25],
-      "Japan":[36,138],
-      "Russia":[60,100],
-      "Canada":[60,-95]
-    };
-    let closestCountry = null;
-    let minDist = Infinity;
-    for(const [country,[cLat,cLon]] of Object.entries(locations)) {
-      const d = Math.sqrt((lat-cLat)**2 + (lon-cLon)**2);
-      if(d < minDist) {
-        minDist = d;
-        closestCountry = country;
-      }
-    }
-    return closestCountry;
-  }
-
-  function animate() {
-    requestAnimationFrame(animate);
-    globe.rotation.y += 0.0015;
-    renderer.render(scene,camera);
-  }
-  animate();
+  charts.distribution.data.labels = Object.keys(bins);
+  charts.distribution.data.datasets = [{ data:Object.values(bins), backgroundColor:['#f43f5e','#f59e0b','#10b981','#3b82f6','#8b5cf6'] }];
+  charts.distribution.update();
 }
 
+// ---------- EVENTS ----------
+yearRange.addEventListener("input", ()=>{ yearLabel.textContent = yearRange.value; updateAllCharts(); });
+updateBtn.addEventListener("click", updateAllCharts);
+countrySelect.addEventListener("change", updateAllCharts);
+topNInput.addEventListener("change", updateAllCharts);
