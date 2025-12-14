@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Internet Speeds Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.4/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #0f172a; /* Dark Blue */
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+    }
+    .chart-container {
+      background: #1e293b;
+      padding: 1.5rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      margin-bottom: 2rem;
+      transition: transform 0.3s ease;
+    }
+    .chart-container:hover {
+      transform: translateY(-5px);
+    }
+    select, input[type=range] {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      margin-right: 1rem;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 2rem;
+      gap: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="text-3xl font-bold my-6">🌐 Global Internet Speeds Dashboard</h1>
+  
+  <div class="controls">
+    <select id="countrySelect" multiple size="5"></select>
+    <select id="regionSelect">
+      <option value="All">All Regions</option>
+    </select>
+    <label for="yearRange">Year: <span id="yearLabel">2024</span></label>
+    <input type="range" id="yearRange" min="2017" max="2024" value="2024">
+  </div>
+
+  <div class="max-w-6xl mx-auto">
+    <div class="chart-container">
+      <canvas id="topChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="improvedChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="inequalityChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="scatterChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="averageChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="regionChart"></canvas>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
+
